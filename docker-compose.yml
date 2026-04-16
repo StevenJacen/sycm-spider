@@ -1,0 +1,17 @@
+services:
+  sycm-spider:
+    build: .
+    container_name: sycm-spider
+    ports:
+      - "5000:5000"
+    environment:
+      - COOKIE=${COOKIE}
+      - TOKEN=${TOKEN}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - NOTIFY_URL=${NOTIFY_URL}
+      - AUTO_LAST_WEEK=1
+      # - CRON_SCHEDULE=0 3 * * 3   # 默认每周三 03:00，可自行修改
+      # - RUN_ONCE=1               # 设为 1 可在启动时立即执行一次（用于测试）
+    volumes:
+      - D:/Document/spider:/app/output
+    restart: unless-stopped
