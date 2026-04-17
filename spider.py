@@ -24,7 +24,10 @@ import urllib.parse
 from datetime import date as dt_date, datetime, timedelta
 from typing import Any
 
+from dotenv import load_dotenv
 import requests
+
+load_dotenv()
 
 # ========================== 环境变量配置 ==========================
 COOKIE = os.getenv("COOKIE", "")

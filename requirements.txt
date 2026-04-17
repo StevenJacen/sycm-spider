@@ -1,3 +1,4 @@
 requests
 flask
 apscheduler
+python-dotenv

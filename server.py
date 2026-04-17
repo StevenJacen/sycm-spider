@@ -15,9 +15,12 @@ import sys
 import threading
 from datetime import datetime
 
+from dotenv import load_dotenv
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify, request
+
+load_dotenv()
 
 import spider
 
