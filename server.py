@@ -4,7 +4,7 @@
 SYCM 爬虫服务化入口
 
 功能：
-- 后台定时任务：每周三自动抓取前一周数据
+- 后台定时任务：按配置自动抓取前一周/前一天数据
 - REST API：接收新 Cookie、手动触发、查看状态
 - Cookie 失效时自动请求 NOTIFY_URL 通知用户
 - 用户更新 Cookie 后自动恢复中断的爬取
@@ -26,6 +26,7 @@ app = Flask(__name__)
 NOTIFY_URL = os.getenv("NOTIFY_URL", "")
 AUTO_LAST_WEEK = os.getenv("AUTO_LAST_WEEK", "1") == "1"
 CRON_SCHEDULE = os.getenv("CRON_SCHEDULE", "0 3 * * 3")
+DEFAULT_DATE_TYPE = os.getenv("DATE_TYPE", "week")
 
 spider_lock = threading.Lock()
 spider_state = {
@@ -33,6 +34,7 @@ spider_state = {
     "message": "",
     "last_notify": None,
     "date_range": None,
+    "date_type": None,
 }
 
 
@@ -59,24 +61,27 @@ def notify_user(message: str, status: str = "cookie_expired"):
         print(f"[NOTIFY] 发送失败: {e}")
 
 
-def do_spider_job(date_range: str | None = None):
+def do_spider_job(date_range: str | None = None, date_type: str | None = None):
     global spider_state
+    dt = (date_type or DEFAULT_DATE_TYPE or "week").lower()
+    label = "前一天" if dt == "day" else "前一周"
     with spider_lock:
         if spider_state["status"] == "running":
             print("[SPIDER] 已有任务在运行，跳过本次调度")
             return
         spider_state["status"] = "running"
-        spider_state["message"] = f"开始爬取 {date_range or '前一周数据'}"
+        spider_state["message"] = f"开始爬取 {date_range or label + '数据'}"
         spider_state["date_range"] = date_range
+        spider_state["date_type"] = dt
 
     try:
         if date_range:
             start, end = date_range.split("|")
-            spider.run(start_date=start, end_date=end)
+            spider.run(start_date=start, end_date=end, date_type=dt)
         elif AUTO_LAST_WEEK:
-            spider.run()
+            spider.run(date_type=dt)
         else:
-            spider.run()
+            spider.run(date_type=dt)
     except spider.CookieExpiredError as e:
         spider_state["status"] = "waiting_cookie"
         spider_state["message"] = f"Cookie 失效: {e}"
@@ -112,13 +117,17 @@ def update_cookie():
 
     # 如果是 waiting_cookie 或 error 状态，自动恢复
     if spider_state["status"] in ("waiting_cookie", "error"):
-        target_date_range = spider_state.get("date_range") or spider.get_last_week_range()
-        t = threading.Thread(target=do_spider_job, args=(target_date_range,))
+        target_date_range = spider_state.get("date_range") or spider.get_last_date_range(
+            spider_state.get("date_type") or DEFAULT_DATE_TYPE
+        )
+        target_date_type = spider_state.get("date_type") or DEFAULT_DATE_TYPE
+        t = threading.Thread(target=do_spider_job, args=(target_date_range, target_date_type))
         t.start()
         return jsonify({
             "success": True,
             "message": "已更新 cookie，正在恢复爬取",
             "date_range": target_date_range,
+            "date_type": target_date_type,
         })
 
     return jsonify({"success": True, "message": "已更新 cookie"})
@@ -132,8 +141,9 @@ def trigger():
 
     data = request.get_json(silent=True) or {}
     date_range = data.get("date_range")
+    date_type = data.get("date_type")
 
-    t = threading.Thread(target=do_spider_job, args=(date_range,))
+    t = threading.Thread(target=do_spider_job, args=(date_range, date_type))
     t.start()
     return jsonify({"success": True, "message": "已触发爬取任务"})
 

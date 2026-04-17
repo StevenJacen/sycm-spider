@@ -10,6 +10,7 @@ services:
       - WEBHOOK_URL=${WEBHOOK_URL}
       - NOTIFY_URL=${NOTIFY_URL}
       - AUTO_LAST_WEEK=1
+      - DATE_TYPE=week             # week 或 day，控制抓取周期类型
       # - CRON_SCHEDULE=0 3 * * 3   # 默认每周三 03:00，可自行修改
       # - RUN_ONCE=1               # 设为 1 可在启动时立即执行一次（用于测试）
     volumes:

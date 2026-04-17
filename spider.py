@@ -36,14 +36,14 @@ AUTO_LAST_WEEK = os.getenv("AUTO_LAST_WEEK", "0") == "1"
 # 日期配置：从 START_DATE 开始，按自然周（周一→周日）递增
 START_DATE = "2026-01-19"      # 必须是周一
 END_DATE = None
-DATE_TYPE = "week"
+DATE_TYPE = os.getenv("DATE_TYPE", "week")
 
 # 每个组合最多爬取页数（None 表示全部）
 MAX_PAGES = None
 
 # 请求间隔（秒）
-MIN_SLEEP = 1.0
-MAX_SLEEP = 3.0
+MIN_SLEEP = 6.0
+MAX_SLEEP = 15.0
 
 # 是否只抓取第一页用于测试
 DEBUG_MODE = False
@@ -140,7 +140,7 @@ HEADERS = {
     "bx-v": "2.5.36",
     "onetrace-card-id": "%2Fmc%2Ffree%2Fmarket_rank%7C%E5%B8%82%E5%9C%BA%E6%8E%92%E8%A1%8C-%E5%95%86%E5%93%81-%E5%95%86%E5%93%81%E6%8E%92%E8%A1%8C",
     "priority": "u=1, i",
-    "referer": "https://sycm.taobao.com/mc/free/market_rank?activeKey=item&dateRange=2026-04-06%7C2026-04-12&dateType=week&parentCateId=11&cateId=110201&cateFlag=2",
+    "referer": "https://sycm.taobao.com/mc/free/market_rank?activeKey=item&dateRange=2026-04-06%7C2026-04-12&dateType=week&parentCateId=50008090&cateId=201590602&cateFlag=2",
     "sec-ch-ua": '"Microsoft Edge";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": "\"Windows\"",
@@ -174,6 +174,22 @@ def generate_week_ranges(start_date_str: str, end_date_str: str | None = None) -
     return ranges
 
 
+def generate_day_ranges(start_date_str: str, end_date_str: str | None = None) -> list[str]:
+    start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    if end_date_str:
+        end = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    else:
+        end = dt_date.today() - timedelta(days=1)
+
+    ranges = []
+    current = start
+    while current <= end:
+        d = current.isoformat()
+        ranges.append(f"{d}|{d}")
+        current += timedelta(days=1)
+    return ranges
+
+
 def cookie_to_dict(cookie_str: str) -> dict:
     cookies = {}
     for item in cookie_str.split(";"):
@@ -203,8 +219,11 @@ def send_webhook(message: str, status: str = "error"):
         print(f"[WEBHOOK] 发送失败: {e}")
 
 
-def get_last_week_range() -> str:
+def get_last_date_range(date_type: str = "week") -> str:
     today = dt_date.today()
+    if date_type == "day":
+        yesterday = today - timedelta(days=1)
+        return f"{yesterday.isoformat()}|{yesterday.isoformat()}"
     days_since_sunday = (today.weekday() + 1) % 7
     last_sunday = today - timedelta(days=days_since_sunday)
     last_monday = last_sunday - timedelta(days=6)
@@ -248,10 +267,11 @@ def fetch_one_page(
     price_seg: int,
     seller_type: int,
     page: int,
+    date_type: str = "week",
 ) -> tuple[list[dict], int | None]:
     params = {
         "dateRange": date_range,
-        "dateType": DATE_TYPE,
+        "dateType": date_type,
         "pageSize": 20,
         "page": page,
         "cateId": cate_id,
@@ -262,7 +282,7 @@ def fetch_one_page(
         "sellerType": seller_type,
         "keyWord": "",
         "cateFlag": 2,
-        "indexCode": "payByrCnt,uv",
+        "indexCode": "uv,payByrCnt,cartByrCnt",
         "marketVersion": "free",
         "_": int(datetime.now().timestamp() * 1000),
         "token": TOKEN,
@@ -437,6 +457,7 @@ def _append_csv(csv_path: str, records: list[dict]):
 def run(
     start_date: str | None = None,
     end_date: str | None = None,
+    date_type: str | None = None,
     category_ids: list[int] | str | None = None,
 ):
     if not COOKIE or not TOKEN:
@@ -448,20 +469,26 @@ def run(
     session = requests.Session()
     session.cookies.update(cookie_to_dict(COOKIE))
 
-    # 自动前一周模式
+    dt = (date_type or DATE_TYPE or "week").lower()
+
+    # 自动前一周/前一天模式
     if AUTO_LAST_WEEK and not start_date and not end_date:
-        date_ranges = [get_last_week_range()]
-        print(f"[AUTO] 自动抓取前一周数据: {date_ranges[0]}\n")
+        date_ranges = [get_last_date_range(dt)]
+        label = "前一天" if dt == "day" else "前一周"
+        print(f"[AUTO] 自动抓取{label}数据: {date_ranges[0]}\n")
     else:
         start = normalize_date_str(start_date) if start_date and str(start_date).lower() != "all" else START_DATE
         end = normalize_date_str(end_date) if end_date and str(end_date).lower() != "all" else END_DATE
-        date_ranges = generate_week_ranges(start, end)
+        if dt == "day":
+            date_ranges = generate_day_ranges(start, end)
+        else:
+            date_ranges = generate_week_ranges(start, end)
         if not date_ranges:
-            msg = f"根据 START_DATE ({start}) 和 END_DATE ({end}) 未生成任何周区间，请检查配置。"
+            msg = f"根据 START_DATE ({start}) 和 END_DATE ({end}) 未生成任何日期区间，请检查配置。"
             print(msg)
             send_webhook(msg)
             return
-        print(f"本次将抓取以下 {len(date_ranges)} 个周区间: {date_ranges}\n")
+        print(f"本次将抓取以下 {len(date_ranges)} 个日期区间: {date_ranges}\n")
 
     if category_ids is None or (isinstance(category_ids, str) and category_ids.lower() == "all"):
         selected_categories = dict(CATEGORIES)
@@ -519,7 +546,7 @@ def run(
                         while True:
                             try:
                                 records, total_page = fetch_one_page(
-                                    session, date_range, cate_id, rank_type, price_seg, seller_type, page
+                                    session, date_range, cate_id, rank_type, price_seg, seller_type, page, dt
                                 )
                             except CookieExpiredError as e:
                                 combo_error = str(e)
@@ -588,11 +615,33 @@ def run(
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
+    known_dt = {"day", "week"}
+
     start_arg = argv[0] if len(argv) >= 1 else None
     end_arg = argv[1] if len(argv) >= 2 else None
     cate_args = argv[2:] if len(argv) >= 3 else []
+    date_type_arg = None
+
+    if start_arg and start_arg.lower() in known_dt:
+        date_type_arg = start_arg
+        start_arg = end_arg
+        end_arg = cate_args[0] if cate_args else None
+        cate_args = cate_args[1:]
+    elif end_arg and end_arg.lower() in known_dt:
+        date_type_arg = end_arg
+        end_arg = cate_args[0] if cate_args else None
+        cate_args = cate_args[1:]
+    elif cate_args and cate_args[0].lower() in known_dt:
+        date_type_arg = cate_args[0]
+        cate_args = cate_args[1:]
+
     try:
-        run(start_date=start_arg, end_date=end_arg, category_ids=parse_category_ids(cate_args))
+        run(
+            start_date=start_arg,
+            end_date=end_arg,
+            date_type=date_type_arg,
+            category_ids=parse_category_ids(cate_args),
+        )
     except CookieExpiredError as e:
         print(f"\n程序因 Cookie 失效退出: {e}")
         sys.exit(1)

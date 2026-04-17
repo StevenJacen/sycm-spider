@@ -20,7 +20,8 @@
 | `TOKEN` | 是 | 从浏览器 URL 复制的 token 参数值 |
 | `NOTIFY_URL` | 否 | **企业微信等 Webhook 地址**。Cookie 失效或运行异常时自动推送消息 |
 | `WEBHOOK_URL` | 否 | 兼容旧名，同 `NOTIFY_URL` |
-| `AUTO_LAST_WEEK` | 否 | 设为 `1` 时自动抓取前一周数据（默认开启） |
+| `AUTO_LAST_WEEK` | 否 | 设为 `1` 时自动抓取前一周/前一天数据（默认开启） |
+| `DATE_TYPE` | 否 | `week`（按周）或 `day`（按天），默认 `week` |
 | `CRON_SCHEDULE` | 否 | 定时规则，默认 `0 3 * * 3`（每周三 03:00） |
 | `RUN_ONCE` | 否 | 设为 `1` 时容器启动后立即执行一次（用于测试） |
 
@@ -39,12 +40,18 @@ set COOKIE=xxx
 set TOKEN=xxx
 set NOTIFY_URL=https://your-server.com/api/notify
 
-# 运行爬虫
+# 运行爬虫（默认 week）
 python spider.py
 
-# 指定日期 / 品类（用法不变）
-python spider.py 20260119
-python spider.py all all 1101
+# 按天模式抓取前一天
+python spider.py day
+
+# 按天模式抓取指定日期范围
+python spider.py 20260401 20260415 day
+
+# 按周模式抓取（默认）
+python spider.py 20260119 20260315 1101
+python spider.py all all week 1101
 ```
 
 ### 服务模式（推荐用于定时任务）
@@ -127,10 +134,15 @@ curl -X POST http://localhost:5000/update-cookie \
 ```bash
 curl -X POST http://localhost:5000/trigger
 
-# 或指定日期范围
+# 指定日期范围
 curl -X POST http://localhost:5000/trigger \
   -H "Content-Type: application/json" \
   -d '{"date_range":"2026-01-19|2026-01-25"}'
+
+# 按天模式触发
+curl -X POST http://localhost:5000/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"date_type":"day"}'
 ```
 
 ### 4. 查看日志
