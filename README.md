@@ -17,7 +17,7 @@
 | 变量名 | 必填 | 说明 |
 |--------|------|------|
 | `COOKIE` | 是 | 从浏览器复制的完整 Cookie 字符串 |
-| `TOKEN` | 是 | 从浏览器 URL 复制的 token 参数值 |
+| `TOKEN` | 否 | 从浏览器 URL 复制的 token 参数值（可选，Cookie 中已包含时无需单独配置） |
 | `NOTIFY_URL` | 否 | **企业微信等 Webhook 地址**。Cookie 失效或运行异常时自动推送消息 |
 | `WEBHOOK_URL` | 否 | 兼容旧名，同 `NOTIFY_URL` |
 | `AUTO_LAST_WEEK` | 否 | 设为 `1` 时自动抓取前一周/前一天数据（默认开启） |
@@ -37,7 +37,6 @@ pip install -r requirements.txt
 
 # 设置环境变量
 set COOKIE=xxx
-set TOKEN=xxx
 set NOTIFY_URL=https://your-server.com/api/notify
 
 # 运行爬虫（默认 week）
@@ -119,6 +118,11 @@ curl http://localhost:5000/health
 curl -X POST http://localhost:5000/update-cookie \
   -H "Content-Type: application/json" \
   -d '{"cookie":"新的Cookie","token":"新的Token"}'
+
+# 如果 token 无需更新，仅传 cookie 即可
+curl -X POST http://localhost:5000/update-cookie \
+  -H "Content-Type: application/json" \
+  -d '{"cookie":"新的Cookie"}'
 ```
 
 返回示例：
@@ -185,7 +189,7 @@ docker-compose up -d
    }
    ```
 3. **服务状态**变为 `waiting_cookie`，暂停后续请求
-4. 你收到通知后，调用 `POST /update-cookie` 传入新的 Cookie 和 Token
+4. 你收到通知后，调用 `POST /update-cookie` 传入新的 Cookie（Token 可选）
 5. 服务自动**恢复中断的爬取**（利用 `.progress_*.json` 断点续传）
 
 ---

@@ -109,14 +109,15 @@ def update_cookie():
     new_cookie = data.get("cookie", "")
     new_token = data.get("token", "")
 
-    if not new_cookie or not new_token:
-        return jsonify({"success": False, "message": "cookie 和 token 不能为空"}), 400
+    if not new_cookie:
+        return jsonify({"success": False, "message": "cookie 不能为空"}), 400
 
     # 更新 spider 模块和进程环境变量
     spider.COOKIE = new_cookie
-    spider.TOKEN = new_token
+    if new_token:
+        spider.TOKEN = new_token
+        os.environ["TOKEN"] = new_token
     os.environ["COOKIE"] = new_cookie
-    os.environ["TOKEN"] = new_token
 
     # 如果是 waiting_cookie 或 error 状态，自动恢复
     if spider_state["status"] in ("waiting_cookie", "error"):

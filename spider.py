@@ -463,8 +463,8 @@ def run(
     date_type: str | None = None,
     category_ids: list[int] | str | None = None,
 ):
-    if not COOKIE or not TOKEN:
-        msg = "[ERROR] COOKIE 或 TOKEN 未配置，请先设置环境变量。"
+    if not COOKIE:
+        msg = "[ERROR] COOKIE 未配置，请先设置环境变量。"
         print(msg)
         send_webhook(msg)
         return
